@@ -28,9 +28,9 @@ def split_to_chunks(data, size):
 
 def _report_message(bot, text, **send_msg_kwargs):
     if config.REPORT_CHAT_ID:
-        chunks = split_to_chunks(text, 4096)
-        for msg in chunks:
-            bot.send_message(chat=config.REPORT_CHAT_ID, text=msg, **send_msg_kwargs)
+        bot.send_message(chat=config.REPORT_CHAT_ID, text=text, **send_msg_kwargs)
+    else:
+        logger.info('_report_message() called, but no REPORT_CHAT_ID found (%r, %r, %r)', bot, text, send_msg_kwargs)
 
 
 class Handler:
@@ -75,6 +75,7 @@ def main(repeating_tracebacks={}):
         BotCommandHandler('/_admin_exec', admin.admin_exec),
         BotCommandHandler('/_admin_upload', admin.admin_upload),
         BotCommandHandler('/_admin_download', admin.admin_download),
+        BotCommandHandler('/start', lambda b, u: b.send_message(text='Hello, world!', chat=u.message.chat)),
     ]
 
     update: Optional[telegram.Update] = None
@@ -159,7 +160,7 @@ if __name__ == '__main__':
     while True:
         try:
             main()
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, SystemExit):
             raise
         except Exception as e:  # noqa: E722
             traceback.print_exc()
