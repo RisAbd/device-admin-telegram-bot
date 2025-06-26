@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 import functools as FT, itertools as IT, operator as OP
@@ -27,7 +28,7 @@ def admin_exec(bot, update):
             cmd = msg_entity.text(update.message)
             import send_message
             env = dict(os.environ,
-                       SEND_MESSAGE=send_message.__file__,
+                       SEND_MESSAGE=f'{sys.executable} {send_message.__file__}',
                        BOT_API_TOKEN=bot._api_token,
                        UPDATE_ID=str(update.id),
                        CHAT_ID=str(update.message.chat.id),
