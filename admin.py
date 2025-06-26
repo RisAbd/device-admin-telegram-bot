@@ -1,3 +1,4 @@
+import contextlib
 import os
 import sys
 from datetime import datetime
@@ -24,47 +25,72 @@ def admin_exec(bot, update):
 
     resps = []
     for msg_entity in update.message.entities:
-        if msg_entity.type == 'pre' and msg_entity.language in ('sh', 'bash', 'shell', None):
-            cmd = msg_entity.text(update.message)
-            import send_message
-            env = dict(os.environ,
-                       SEND_MESSAGE=f'{sys.executable} {send_message.__file__}',
-                       BOT_API_TOKEN=bot._api_token,
-                       UPDATE_ID=str(update.id),
-                       CHAT_ID=str(update.message.chat.id),
-                       REPLY_TO_MESSAGE_ID=str(update.message.id),
-                       )
-            try:
-                p = subprocess.run(cmd, shell=True,
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                   timeout=60, env=env,
-                                   )
-            except Exception as e:
-                traceback_string = traceback.format_exc()
-                resps.append(('exception', traceback_string))
-            else:
-                resps.append(('process', p.returncode, p.stderr.decode(), p.stdout.decode()))
+        if msg_entity.type == 'pre':
+            if msg_entity.language in ('sh', 'bash', 'shell', None):
+                cmd = msg_entity.text(update.message)
+                import send_message
+                env = dict(os.environ,
+                           SEND_MESSAGE=f'{sys.executable} {send_message.__file__}',
+                           BOT_API_TOKEN=bot._api_token,
+                           UPDATE_ID=str(update.id),
+                           CHAT_ID=str(update.message.chat.id),
+                           REPLY_TO_MESSAGE_ID=str(update.message.id),
+                           )
+                try:
+                    p = subprocess.run(cmd, shell=True,
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                       timeout=60, env=env,
+                                       )
+                except Exception as e:
+                    traceback_string = traceback.format_exc()
+                    resps.append(('exception', traceback_string))
+                else:
+                    resps.append(('process', p.returncode, p.stderr.decode(), p.stdout.decode()))
+            elif msg_entity.language in ('python', 'python3'):
+                cmd = msg_entity.text(update.message)
+                stderr = io.StringIO()
+                stdout = io.StringIO()
+                with contextlib.redirect_stderr(stderr), contextlib.redirect_stdout(stdout):
+                    try:
+                        exec(cmd)
+                    except Exception as e:
+                        traceback_string = traceback.format_exc()
+                        resps.append(('exception', traceback_string))
+                    else:
+                        resps.append(('python', stderr.getvalue(), stdout.getvalue()))
+
 
     tmpl = jinja2_env.from_string('''
 {%- for r in resps %}
+{%- if r %}
+---------------------------
+#{{ loop.index0 }} <code>{{ r[0] }}</code> block:
+{%- endif %}
 {%- if r[0] == "exception" %}
-<pre><code class="language-python">
-{{ r[1]|e }}
-</code></pre>
+<pre><code class="language-python">{{ r[1]|e }}</code></pre>
 {%- elif r[0] == 'process' %}
-return_code: <pre>{{ r[1] }}</pre>
+return_code: <code>{{ r[1] }}</code>
+{%- if r[3].strip() %}
 stdout:
-<pre><code class="language-bash">
-{{ r[3]|e }}
-</code></pre>
+<pre><code class="language-bash">{{ r[3]|e }}</code></pre>
+{%- endif %}
+{%- if r[2].strip() %}
 stderr: 
-<pre><code class="language-bash">
-{{ r[2]|e }}
-</code></pre>
+<pre><code class="language-bash">{{ r[2]|e }}</code></pre>
+{%- endif %}
+{%- elif r[0] == 'python' %}
+{%- if r[2].strip() %}
+stdout:
+<pre><code class="language-python">{{ r[2]|e }}</code></pre>
+{%- endif %}
+{%- if r[1].strip() %}
+stderr: 
+<pre><code class="language-python">{{ r[1]|e }}</code></pre>
+{%- endif %}
 {%- else %}
 {{ r.__repr__()|e }}
 {%- endif %}
-{% else %}
+{%- else %}
 *nothing to execute*
 {%- endfor %}
 ''')
