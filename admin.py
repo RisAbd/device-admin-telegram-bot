@@ -59,13 +59,13 @@ def admin_exec(bot, update):
                     else:
                         resps.append(('python', stderr.getvalue(), stdout.getvalue()))
 
-
     tmpl = jinja2_env.from_string('''
 {%- for r in resps %}
 {%- if r %}
 ---------------------------
 #{{ loop.index0 }} <code>{{ r[0] }}</code> block:
 {%- endif %}
+{%- macro render_r(r) %}
 {%- if r[0] == "exception" %}
 <pre><code class="language-python">{{ r[1]|e }}</code></pre>
 {%- elif r[0] == 'process' %}
@@ -90,8 +90,15 @@ stderr:
 {%- else %}
 {{ r.__repr__()|e }}
 {%- endif %}
+{%- endmacro %}
+{%- set out = render_r(r) %}
+{%- if not out %}
+<em><b>*nothing to show*</b></em>
 {%- else %}
-*nothing to execute*
+{{- out }}
+{%- endif %}
+{%- else %}
+<em><b>*nothing to execute*</b></em>
 {%- endfor %}
 ''')
     text = tmpl.render(resps=resps)
