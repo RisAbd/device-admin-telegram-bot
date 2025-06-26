@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from pathlib import Path
 import functools as FT, itertools as IT, operator as OP
@@ -22,10 +23,21 @@ def admin_exec(bot, update):
 
     resps = []
     for msg_entity in update.message.entities:
-        if msg_entity.type == 'pre' and msg_entity.language in ('sh', 'bash', 'shell'):
+        if msg_entity.type == 'pre' and msg_entity.language in ('sh', 'bash', 'shell', None):
             cmd = msg_entity.text(update.message)
+            import send_message
+            env = dict(os.environ,
+                       SEND_MESSAGE=send_message.__file__,
+                       BOT_API_TOKEN=bot._api_token,
+                       UPDATE_ID=str(update.id),
+                       CHAT_ID=str(update.message.chat.id),
+                       REPLY_TO_MESSAGE_ID=str(update.message.id),
+                       )
             try:
-                p = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+                p = subprocess.run(cmd, shell=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                   timeout=60, env=env,
+                                   )
             except Exception as e:
                 traceback_string = traceback.format_exc()
                 resps.append(('exception', traceback_string))
@@ -36,20 +48,20 @@ def admin_exec(bot, update):
 {%- for r in resps %}
 {%- if r[0] == "exception" %}
 <pre><code class="language-python">
-{{ r[1] }}
+{{ r[1]|e }}
 </code></pre>
 {%- elif r[0] == 'process' %}
 return_code: <pre>{{ r[1] }}</pre>
 stdout:
 <pre><code class="language-bash">
-{{ r[3] }}
+{{ r[3]|e }}
 </code></pre>
 stderr: 
 <pre><code class="language-bash">
-{{ r[2] }}
+{{ r[2]|e }}
 </code></pre>
 {%- else %}
-{{ r.__repr__() }}
+{{ r.__repr__()|e }}
 {%- endif %}
 {% else %}
 *nothing to execute*
